@@ -21,14 +21,14 @@ The power emitted by a blackbody emitter with surface $A_{em}$ is
 
 \begin{align}
   P &= A_{em} \sigma T^4 \\
-    &= A_{em} \int B_\lambda(\lambda, T) \, d\lambda \\
-    &= A_{em} \int B_\nu(\nu, T) \, d\nu
+    &= \pi A_{em} \int B_\lambda(\lambda, T) \, d\lambda \\
+    &= \pi A_{em} \int B_\nu(\nu, T) \, d\nu
 \end{align}
 
-Units are
+where $\pi$ is for an ideal Lambertian surface. Units are
 
 \begin{align}
-    [P] &= \textrm{J}\,\textrm{m}^{-2}\,\textrm{s}^{-1} = \textrm{W}\,\textrm{m}^{-2} \\
+    [\sigma T^{4}] &= \textrm{J}\,\textrm{m}^{-2}\,\textrm{s}^{-1} = \textrm{W}\,\textrm{m}^{-2} \\
     [B_{\lambda}] &= \textrm{W}\,\textrm{m}^{-2}\, \mu\textrm{m}^{-1}\,\textrm{sr}^{-1} = \textrm{W m}^{-3}\,\textrm{sr}^{-1} \\
     [B_{\nu}] &= \textrm{W}\,\textrm{m}^{-2}\, \textrm{Hz}^{-1}\,\textrm{sr}^{-1}
 \end{align}
