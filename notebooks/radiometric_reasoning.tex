@@ -1,0 +1,88 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb}
+\usepackage[margin=1in]{geometry}
+
+\title{Radiometric Reasoning}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% Inline math: $E = h\nu$
+% Display math:
+% \begin{equation}
+%   \Phi_\nu = \frac{B_\nu}{h\nu}
+% \end{equation}
+
+The power emitted by a blackbody emitter with surface $A_{em}$ is 
+
+\begin{align}
+  P &= A_{em} \sigma T^4 \\
+    &= A_{em} \int B_\lambda(\lambda, T) \, d\lambda \\
+    &= A_{em} \int B_\nu(\nu, T) \, d\nu
+\end{align}
+
+Units are
+
+\begin{align}
+    [P] &= \textrm{J}\,\textrm{m}^{-2}\,\textrm{s}^{-1} = \textrm{W}\,\textrm{m}^{-2} \\
+    [B_{\lambda}] &= \textrm{W}\,\textrm{m}^{-2}\, \mu\textrm{m}^{-1}\,\textrm{sr}^{-1} = \textrm{W m}^{-3}\,\textrm{sr}^{-1} \\
+    [B_{\nu}] &= \textrm{W}\,\textrm{m}^{-2}\, \textrm{Hz}^{-1}\,\textrm{sr}^{-1}
+\end{align}
+
+Imagine that the emission is being viewed from the detector with surface area $A_{det}$ as if it is coming from the underside of a 
+hemispherical surface (solid angle $2 \pi$ sr). To get the photon rate received by a flat surface under the hemisphere, 
+
+\begin{align}
+    \label{eqn:photon_rate}
+    R_{\gamma} &= A_{det} \int_{\Omega} \int_{\nu} B_{\nu}(\nu, T) \, \frac{d\nu}{h\nu} \, \textrm{cos}(\theta) \textrm \, d\Omega   \\
+    &= A_{det} \int_{0}^{2\pi} \int_{0}^{\pi/2} \int_{\nu} B_{\nu}(\nu, T) \, \frac{d\nu}{h\nu} \, \textrm{cos}(\theta) \textrm{sin}(\theta) \, d\theta \, d\phi \\
+    &= \pi A_{det} \int B_{\nu}(\nu, T) \, \frac{d\nu}{h\nu}  \\
+\end{align}
+
+\noindent
+where $\theta$ is the zenith angle as seen from the flat surface. The cos($\theta$) is from the projection angle of the received flux, and the sin($\theta$) is for integration of the solid angle. Units of the double integral in Eqn. \ref{eqn:photon_rate} are $[B_{\nu}][d\Omega]/[h] = \textrm{s}^{-1}\,\textrm{m}^{-2}$. Note that $R_{\gamma}$ is not the total shell emission, and $A_{em}$ does not appear here because the solid angle of its surface is being integrated over.
+
+The detected photons of a detector with sensitivity curve $S(\nu)$ is
+
+\begin{align}
+    D_{\gamma,det} &= \pi A_{det} \int S(\nu) B_{\nu}(\nu, T) \, \frac{d\nu}{h\nu}  \\
+\end{align}
+
+Similarly, for a single pixel, the counted photons are just
+
+\begin{align}
+    D_{\gamma,pix} &= \pi A_{pix} \int S(\nu) B_{\nu}(\nu, T) \, \frac{d\nu}{h\nu}  \\
+\end{align}
+
+If there is a small pinhole with area $A_{p}$ at a different temperature embedded in the emitting hemisphere, at a distance $L_{p}$ from the detector. The solid angle it inscribes is 
+
+\begin{align}
+    \Omega_{p} &= \frac{A_{p}}{L_{p}^2} \\
+\end{align}
+
+Since the pinhole is directly over the detector (cos($\theta$) $\approx$ 1), the photon rate received by the detector from it is
+
+\begin{align}
+    R_{\gamma,p} &\approx A_{det} \int \int B_{\nu}(\nu, T_p) \, \frac{d\nu}{h\nu} \cdot d\Omega_p \\
+    &= A_{det} \left(\frac{A_p}{L_p^2}\right) \int B_{\nu}(\nu, T_p) \, \frac{d\nu}{h\nu}
+\end{align}
+
+Then the total photon rate at the detector is that from the entire hemisphere, minus that from the solid angle taken up by the pinhole (that is, from the emission at the hemisphere's temperature), plus that from the pinhole itself at the pinhole's temperature:
+
+\begin{align}
+    R_{\gamma} &= \pi A_{det} \int B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} - A_{det} \left(\frac{A_p}{L_p^2}\right) \int B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} + A_{det} \left(\frac{A_p}{L_p^2}\right) \int B_{\nu}(\nu, T_p) \, \frac{d\nu}{h\nu} \\
+    &= A_{det} \left( \pi \int B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} - \frac{A_p}{L_p^2} \int B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} + \frac{A_p}{L_p^2} \int B_{\nu}(\nu, T_p) \, \frac{d\nu}{h\nu} \right) \\
+    &= A_{det} \left( \pi \int B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} + \frac{A_p}{L_p^2} \int \left[ B_{\nu}(\nu, T_{p}) - B_{\nu}(\nu, T_{h}) \right] \frac{d\nu}{h\nu} \right) \\
+\end{align}
+
+The detected photons (for the detector or an individual pixel) are then
+
+\begin{align}
+    D_{\gamma,det|pix} &= A_{det|pix} \left( \pi \int S(\nu) B_{\nu}(\nu, T_{h}) \, \frac{d\nu}{h\nu} + \frac{A_p}{L_p^2} \int S(\nu) \left[ B_{\nu}(\nu, T_{p}) - B_{\nu}(\nu, T_{h}) \right] \frac{d\nu}{h\nu} \right) \\
+\end{align}
+
+\end{document}
