@@ -174,7 +174,6 @@ def photon_rate_per_pixel(T_hemisphere, T_pinhole, width_pinhole, length_pinhole
 
     return D_counts_pix
 
-photon_rate_per_pixel(T_hemisphere = 150*u.K, T_pinhole = 160*u.K, W_pinhole = 1*u.mm, L_pinhole = 30*u.mm)
 
 T_pinhole_fixed =293*u.K
 T_hemisphere_array = np.linspace(55, 273, 100) * u.K
@@ -183,8 +182,9 @@ adu_rate_pix_absorbed_vs_temp = u.Quantity(
         photon_rate_per_pixel(
             T_hemisphere=T,
             T_pinhole=T_pinhole_fixed,
-            W_pinhole=2 * u.mm,
-            L_pinhole=8 * u.mm,
+            width_pinhole=2 * u.mm,
+            length_pinhole=8 * u.mm,
+            dist_pinhole=30 * u.mm,
         )
         for T in T_hemisphere_array
     ]
