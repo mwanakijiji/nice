@@ -174,17 +174,19 @@ def photon_rate_per_pixel(T_hemisphere, T_pinhole, width_pinhole, length_pinhole
 
     return D_counts_pix
 
+'''
+# for just one pinhole size, temp
 
-T_pinhole_fixed =293*u.K
+T_pinhole_fixed =167*u.K
 T_hemisphere_array = np.linspace(55, 273, 100) * u.K
 adu_rate_pix_absorbed_vs_temp = u.Quantity(
     [
         photon_rate_per_pixel(
             T_hemisphere=T,
             T_pinhole=T_pinhole_fixed,
-            width_pinhole=2 * u.mm,
-            length_pinhole=8 * u.mm,
-            dist_pinhole=30 * u.mm,
+            width_pinhole=0 * u.um,
+            length_pinhole=0 * u.um,
+            dist_pinhole=10 * u.mm,
         )
         for T in T_hemisphere_array
     ]
@@ -193,8 +195,75 @@ adu_rate_pix_absorbed_vs_temp = u.Quantity(
 plt.semilogy(T_hemisphere_array, adu_rate_pix_absorbed_vs_temp)
 plt.xlabel(f'Temperature of hemisphere({T_hemisphere_array.unit})')
 plt.ylabel(f'ADU per pixel ({adu_rate_pix_absorbed_vs_temp.unit})')
-#plt.axvline(x=90, color = 'k', linestyle = '--')
-plt.title(f'Detector counts (T_pinhole = {T_pinhole_fixed})')
+plt.ylim(1e-6, 1e10)
+plt.axhline(y=1, color = 'k', linestyle = '--')
+plt.title(f'Detector counts')
 plt.show()
+'''
 
+# for overplotting multiple pinhole size, temp
 
+T_pinhole_fixed =167*u.K
+T_hemisphere_array = np.linspace(55, 273, 100) * u.K
+
+adu_rate_pix_absorbed_vs_temp_no_pinhole = u.Quantity(
+    [
+        photon_rate_per_pixel(
+            T_hemisphere=T,
+            T_pinhole=T_pinhole_fixed,
+            width_pinhole=0 * u.um,
+            length_pinhole=0 * u.um,
+            dist_pinhole=10 * u.mm,
+        )
+        for T in T_hemisphere_array
+    ]
+)
+
+# small pinhole is, I think, a D=30 um diameter circle, so for a square it 
+# would have lengths of D/2 * sqrt(pi)
+adu_rate_pix_absorbed_vs_temp_small_pinhole = u.Quantity(
+    [
+        photon_rate_per_pixel(
+            T_hemisphere=T,
+            T_pinhole=T_pinhole_fixed,
+            width_pinhole=(30/2) * np.sqrt(np.pi) * u.um,
+            length_pinhole=(30/2) * np.sqrt(np.pi) * u.um,
+            dist_pinhole=10 * u.mm,
+        )
+        for T in T_hemisphere_array
+    ]
+)
+
+adu_rate_pix_absorbed_vs_temp_large_pinhole = u.Quantity(
+    [
+        photon_rate_per_pixel(
+            T_hemisphere=T,
+            T_pinhole=T_pinhole_fixed,
+            width_pinhole=0.5 * u.mm,
+            length_pinhole=30 * u.mm,
+            dist_pinhole=10 * u.mm,
+        )
+        for T in T_hemisphere_array
+    ]
+)
+
+frame_time = 1.47528 # sec
+saturation_counts = 2**16
+max_adu_rate = saturation_counts / frame_time
+readout_noise_up_limit = 1200
+
+fig = plt.figure(figsize=(8, 5))
+plt.semilogy(T_hemisphere_array, adu_rate_pix_absorbed_vs_temp_no_pinhole, label='No pinhole')
+plt.semilogy(T_hemisphere_array, adu_rate_pix_absorbed_vs_temp_small_pinhole, label='30 um pinhole')
+plt.semilogy(T_hemisphere_array, adu_rate_pix_absorbed_vs_temp_large_pinhole, label='3x0.5 mm slit')
+plt.axhline(y=max_adu_rate, color = 'r', linestyle = '--', label=f'Max ADU rate')
+plt.axhline(y=readout_noise_up_limit, color = 'k', linestyle = '--', alpha=0.5, label=f'Approx. upper limit to read noise (with diff detec. output)')
+plt.axhline(y=3*readout_noise_up_limit, color = 'k', linestyle = '--', alpha=1, label=f'3x upper limit to read noise (with diff detec. output)')
+plt.xlabel(f'Temperature of hemisphere ({T_hemisphere_array.unit})')
+plt.ylabel(f'ADU per pixel ({adu_rate_pix_absorbed_vs_temp_no_pinhole.unit})')
+plt.ylim(1e-6, 1e10)
+plt.xlim(np.min(T_hemisphere_array.value), np.max(T_hemisphere_array.value))
+plt.legend(loc='lower right')
+plt.grid(True, which="both")
+plt.title(f'Detector counts\n Pinhole temp = {T_pinhole_fixed}')
+plt.show()
