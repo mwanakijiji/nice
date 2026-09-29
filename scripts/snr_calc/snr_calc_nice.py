@@ -132,22 +132,24 @@ def dispersion_law_example(wavelength):
     return wavelength
 
 
-def spectral_footprint_example(n_y, n_x, width=3,
+def spectral_footprint_example(camera, width=3,
                        wav_start=0.5*u.um, wav_end=5.0*u.um):
     '''
     Example spectral footprint (bool) and lambda map (um)
 
     INPUTS:
-    n_y: number of rows in the detector array
-    n_x: number of columns in the detector array
-    width: width of the spectral footprint [pixels]
-    wav_start: start wavelength [um]
-    wav_end: end wavelength [um]
+    camera (Camera): camera object (needed for detector array shape)
+    width (float): width of the spectral footprint [pixels]
+    wav_start (Quantity): start wavelength [um]
+    wav_end (Quantity): end wavelength [um]
 
     OUTPUTS:
     footprint (array): boolean mask of the spectral footprint
     lambda_map (Quantity): wavelength map [um]
     '''
+
+    n_y = camera.n_y
+    n_x = camera.n_x
 
     # slope and intercept of dispersion law
     m_slope = 10./165.
@@ -224,6 +226,46 @@ class Camera:
         return (self.n_y, self.n_x)
 
 
+    def to_electrons_per_read(camera, readout_true_photons):
+        '''
+        Convert the incident photons to electrons, 
+        and add in inherent detector effects (dark current, read noise),
+        all for a single read
+
+        INPUTS:
+        camera (Camera): camera object
+        readout_true_photons (ReadoutTruePhotons): readout object (real incident photon rate only!)
+
+        OUTPUTS:
+        sci_e (2D array): science signal in electrons
+        bkg_e (2D array): background signal in electrons
+        dark_pedestal_e (float): dark current pedestal in electrons
+        total_e (2D array): total signal in electrons
+        noise_e (2D array): noise in electrons
+        '''
+
+        t = camera.integration_time # [s]
+        qe = camera.quantum_efficiency # [unitless]
+        gain = camera.gain # electrons/photon
+
+        # convert photons to electrons
+        sci_e = readout_true_photons.sci_sig * qe * t * gain # [electrons/pix]
+        bkg_e = (readout_true_photons.enclosure_sig + readout_true_photons.other_bkg_sig) * qe * t * gain # [electrons/pix]
+
+        # dark current pedestal
+        dark_pedestal_e = camera.dark_current * t #  [e-/pix]
+
+        # pixel-to-pixel read noise (already in terms of rms)
+        read_noise_e = camera.read_noise # [e-/pix rms]
+
+        # read noise is per read, not a flux; add in variance
+        noise_e = np.sqrt(sci_e + bkg_e + dark_pedestal_e + read_noise_e**2)
+        total_e = sci_e + bkg_e + dark_pedestal_e
+
+        return sci_e, bkg_e, dark_pedestal_e, total_e, noise_e
+
+
+
 
     def sci_signal_electrons(self, flux_disp_on_det_pix):
         '''
@@ -254,9 +296,10 @@ class Camera:
 
 # ----------------------------------------------------------------------------
 
-class Readout:
+class ReadoutTruePhotons:
     '''
-    A readout from the detector
+    The photon map onto the detector (like a readout in terms of photons, 
+    except without dark current or read noise)
     '''
 
     def __init__(
@@ -264,12 +307,16 @@ class Readout:
         camera, 
         sci_sig=None, 
         enclosure_sig=None, 
-        other_bkg_sig=None
+        other_bkg_sig=None,
+        #dark_current=None,
+        #read_noise=None
         ):
 
         self.sci_sig = sci_sig                 # science signal [ph/s/pix]
         self.enclosure_sig = enclosure_sig     # thermal emission from enclosure [ph/s/pix]
         self.other_bkg_sig = other_bkg_sig      # other signal [ph/s/pix]
+        #self.dark_current = camera.dark_current                 # dark current noise [ph/s/pix]
+        #self.read_noise = camera.read_noise             # read noise [ph/s/pix]
 
 
 # ----------------------------------------------------------------------------
@@ -278,9 +325,9 @@ def main():
 
     ipdb.set_trace()
 
-    # generate starting source
+    # generate starting 'science'source
     wavel = np.linspace(0.5, 5, 1000) * u.um
-    src = source_blackbody(T=1000*u.K, wavelength=wavel)
+    src_sci = source_blackbody(T=1000*u.K, wavelength=wavel)
     ipdb.set_trace()
 
     # generate intervening optics (placeholder for now)
@@ -301,27 +348,26 @@ def main():
 
     # generate dispersion law specific to detector array
     # (includes effect of prism and camera lens)
-    footprint, lambda_map = spectral_footprint_example(
-        n_y=camera.n_y, 
-        n_x=camera.n_x
-        )
+    footprint, lambda_map = spectral_footprint_example(camera)
+
+    # instantiate photon map
+    photon_map = ReadoutTruePhotons(camera)
 
     # instantiate readout
-    footprint, lambda_map = spectral_footprint_example(
-        n_y=camera.n_y, 
-        n_x=camera.n_x, m=10./165., b=69.)
-
-
-
+    #readout = Readout(camera)
 
     # apply dispersion law to spectrum entering the camera
-    flux_disp_on_det = apply_dispersion_law(
-        wavel, src.flux, lambda_map
-    )
+    photon_map.sci_sig = apply_dispersion_law(wavel, src_sci.flux, lambda_map)
 
-    # calculate science photon flux on the detector
+    # calculate background photon flux on the detector 
+    # (i.e., interior emission from camera enclosure)
+    photon_map.bkg_sig = camera.enclosure_signal(wavel, src_bkg.flux, lambda_map)
 
-    # calculate background photon flux on the detector
+    # calculate detector noise
+    #readout.det_noise = calculate_detector_noise(readout.sci_sig, readout.bkg_sig)
+
+    # convert photon sources to electrons, and add in detector noise sources
+    sci_e, bkg_e, dark_pedestal_e, total_e, noise_e = camera.to_electrons_per_read(photon_map)
 
     # calculate signal-to-noise ratio
 
