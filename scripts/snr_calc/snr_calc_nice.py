@@ -8,6 +8,13 @@ import ipdb
 from astropy.modeling.physical_models import BlackBody as blackbody_spectrum
 from astropy import units as u
 
+# import some fcns from radiometry_mct
+import sys
+from pathlib import Path
+_scripts_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_scripts_dir / 'radiometry_mct'))
+from radiometry_mct import photon_rate_per_pixel, wavel_to_nu, flux_nu_to_photons
+
 # ----------------------------------------------------------------------------
 # source stuff
 
@@ -265,33 +272,16 @@ class Camera:
         return sci_e, bkg_e, dark_pedestal_e, total_e, noise_e
 
 
-
-
-    def sci_signal_electrons(self, flux_disp_on_det_pix):
+    def enclosure_signal(camera, wavelength, flux):
         '''
-        'Science' signal in e
+        Calculate the background photon flux on the detector
+        (i.e., interior emission from camera enclosure)
 
-        INPUTS:
-        flux_disp_on_det_pix: flux on the detector [photons/s/pix]
-
-        OUTPUTS:
-        signal_electrons: signal in electrons
+        This assumes a simple blackbody emission from the underside 
+        of a hemispherical surface.
         '''
 
-        return flux_disp_on_det * self.quantum_efficiency * self.integration_time
-
-
-    def noise_electrons(self, signal, background):
-        return np.sqrt(
-            signal + background
-            + self.dark_current * self.integration_time
-            + self.read_noise**2
-        )
-
-    def snr(self, flux_on_det, background_flux):
-        s = self.signal_electrons(flux_on_det)
-        b = self.signal_electrons(background_flux)
-        return s / self.noise_electrons(s, b)
+        return TBD
 
 
 # ----------------------------------------------------------------------------
@@ -328,7 +318,7 @@ def main():
     # generate starting 'science'source
     wavel = np.linspace(0.5, 5, 1000) * u.um
     src_sci = source_blackbody(T=1000*u.K, wavelength=wavel)
-    ipdb.set_trace()
+    #src_sci = source_laser()
 
     # generate intervening optics (placeholder for now)
     io = InterveningOptics(name='simple_pass_through')
@@ -336,40 +326,38 @@ def main():
     # instantiate camera (also needed for dispersion law, readouts)
     camera = Camera(
         name='example_camera',
-        quantum_efficiency=0.9,
-        gain=1.0,
-        pixel_pitch=10.0*u.um,
-        dark_current=0.0,
-        read_noise=0.0,
-        integration_time=1.0*u.s, 
-        n_y=200, 
-        n_x=200
+        quantum_efficiency = 0.9,
+        gain = 1.0 * u.electron/u.photon,
+        pixel_pitch = 10.0 * u.um,
+        dark_current = 0.0 * u.electron/u.s/u.pix, # rate
+        read_noise = 0.0 * u.electron/u.pix, # rms
+        integration_time = 1.0 * u.s, 
+        n_y = 200, # pixels along y
+        n_x = 200 # pixels along x
     )
 
     # generate dispersion law specific to detector array
     # (includes effect of prism and camera lens)
     footprint, lambda_map = spectral_footprint_example(camera)
 
-    # instantiate photon map
+    # instantiate photon map on the detector
     photon_map = ReadoutTruePhotons(camera)
 
     # instantiate readout
     #readout = Readout(camera)
 
-    # apply dispersion law to spectrum entering the camera
+    # send photons through dispersion law and onto the detector photon map
     photon_map.sci_sig = apply_dispersion_law(wavel, src_sci.flux, lambda_map)
 
-    # calculate background photon flux on the detector 
+    # calculate background photon flux on the detector photon map
     # (i.e., interior emission from camera enclosure)
-    photon_map.bkg_sig = camera.enclosure_signal(wavel, src_bkg.flux, lambda_map)
-
-    # calculate detector noise
-    #readout.det_noise = calculate_detector_noise(readout.sci_sig, readout.bkg_sig)
+    photon_map.bkg_sig = camera.enclosure_signal(wavel, src_bkg.flux, wavel)
 
     # convert photon sources to electrons, and add in detector noise sources
     sci_e, bkg_e, dark_pedestal_e, total_e, noise_e = camera.to_electrons_per_read(photon_map)
 
-    # calculate signal-to-noise ratio
+    # calculate signal-to-noise ratio (for 1 read)
+    snr_2D = snr_2D(sci_e, bkg_e)
 
 
     # plot the results
