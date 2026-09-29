@@ -11,19 +11,9 @@ from astropy import units as u
 # ----------------------------------------------------------------------------
 # source stuff
 
-class Source:
-    def __init__(self, name, wavelength, flux, pattern):
-        self.name = name
-        self.wavelength = wavelength   # array, e.g. um
-        self.flux = flux               # spectrum on that grid
-        self.pattern = pattern         # 2D light at the output (normalized to 1)
+def _simple_circular_pattern():
+    # a circular pattern (units pixels for now)
 
-def source_blackbody(T=1200*u.K, wavelength=np.linspace(0.5, 5, 1000)*u.um, pattern=None):
-
-    bb = blackbody_spectrum(temperature=T) # B_nu(T)
-    flux = bb(wavelength)
-
-    # 2D emission pattern ## ## TODO: put into dims of microns?
     pattern = np.zeros((100,100))
     # make central region a circle
     radius = 10 # pixels
@@ -32,33 +22,160 @@ def source_blackbody(T=1200*u.K, wavelength=np.linspace(0.5, 5, 1000)*u.um, patt
     pattern[mask] = 1
     pattern = pattern / np.sum(pattern) # normalize
 
-    return Source('blackbody', wavelength, flux, pattern)
+    return pattern
 
-def source_laser(wavelength_line, power, wavelength, pattern, width=None):
-    flux = np.zeros_like(wavelength)
+
+class Source:
+    def __init__(self, name, wavelength, flux, pattern_output):
+        self.name = name
+        self.wavelength = wavelength   # array [um]
+        self.flux = flux               # spectrum on that grid [unitless; will depend on source ## ## TODO: make consistent]
+        self.pattern_output = pattern_output         # 2D light at the output (normalized to 1)
+
+def source_blackbody(T=1200*u.K, wavelength=np.linspace(0.5, 5, 1000)*u.um, pattern_output=None):
+    '''
+    Return a BB Source object, given parameter inputs
+
+    INPUTS:
+    T: temperature [K]
+    wavelength: wavelength grid [um]
+    pattern: 2D emission pattern [normalized to 1]
+
+    OUTPUTS:
+    Source object, updated parameters:
+        wavelength: wavelengths [um]
+        flux: spectrum [unitless]
+        pattern: 2D light at the output (normalized to 1)
+    '''
+
+    bb = blackbody_spectrum(temperature=T) # B_nu(T)
+    flux = bb(wavelength)
+
+    # 2D emission pattern ## ## TODO: put into dims of microns?
+    pattern_output = _simple_circular_pattern()
+
+    return Source('blackbody', wavelength, flux, pattern_output)
+
+
+def source_laser(pattern_output=None):
+    '''
+    Read in a laser spectrum from a file and return a Source object
+
+    INPUTS:
+    pattern_output: 2D emission pattern [normalized to 1]
+
+    OUTPUTS:
+    Source object, updated parameters:
+        wavelength: wavelengths [um]
+        flux: spectrum [unitless]
+        pattern: 2D light at the output (normalized to 1)
+    '''
+
+    #flux = np.zeros_like(wavelength)
     # put all the power in one bin, or a narrow Gaussian
-    ...
-    return Source('laser', wavelength, flux, pattern)
+    
+    # read in laser spectrum 
+    # ## PLACEHOLDER
+    file_name = (
+        '/Users/eckhartspalding/Documents/git.repos/nice/scripts/'
+        'snr_calc/data/example_laser_source.csv'
+    )
+   
+    df_laser = pd.read_csv(file_name, sep=r"\s+", skiprows=2)
+    wavelength = df_laser['wavel_um'].values * u.um
+    flux = df_laser['psd_dbm_nm'].values
+
+    # 2D emission pattern ## ## TODO: put into dims of microns?
+    pattern_output = _simple_circular_pattern()
+
+    return Source('laser', wavelength, flux, pattern_output)
 
 # ----------------------------------------------------------------------------
 
 class InterveningOptics:
-    def __init__(self, name, acceptance_in, emission_out):
+    def __init__(self, name, pattern_input=None, pattern_output=None):
         self.name = name
 
-        # 2D acceptance function
-        self.acceptance_in = acceptance_in
+        # 2D acceptance function (default simple circle)
+        self.pattern_input = (
+            _simple_circular_pattern() if pattern_input is None else pattern_input
+        )
 
-        # 2D emission function
-        self.emission_out = emission_out
+        # 2D emission function (default simple circle)
+        self.pattern_output = (
+            _simple_circular_pattern() if pattern_output is None else pattern_output
+        )
 
 # ----------------------------------------------------------------------------
 
 class DispersionLaw:
-    def __init__(self, name, dispersion_law):
+    def __init__(self, name, dispersion_law, detector_array_canvas):
         self.name = name
         self.dispersion_law = dispersion_law
+        self.detector_array_canvas = detector_array_canvas
 
+def dispersion_law_example(wavelength):
+    '''
+    Example dispersion law
+    '''
+
+    m = 10./165.
+    b = 69.
+
+    detector_array_canvas = np.zeros((200, 200))
+
+    yy, xx = np.meshgrid(
+        np.arange(detector_array_canvas.shape[0]), 
+        np.arange(detector_array_canvas.shape[1]), 
+        indexing='ij')
+
+    return wavelength
+
+
+def spectral_footprint_example(n_y, n_x, m, b, width=3,
+                       wav_start=0.5*u.um, wav_end=5.0*u.um):
+    '''
+    Example spectral footprint (bool) and lambda map (um)
+
+    INPUTS:
+    n_y: number of rows in the detector array
+    n_x: number of columns in the detector array
+    m: slope of the dispersion law
+    b: intercept of the dispersion law
+    width: width of the spectral footprint [pixels]
+    wav_start: start wavelength [um]
+    wav_end: end wavelength [um]
+
+    OUTPUTS:
+    footprint (array): boolean mask of the spectral footprint
+    lambda_map (Quantity): wavelength map [um]
+    '''
+
+    m_slope = 10./165.
+    b_intercept = 69.
+
+    yy, xx = np.meshgrid(np.arange(n_y), np.arange(n_x), indexing='ij')
+    # perpendicular distance to y = m x + b
+    dist = np.abs(yy - (m * xx + b)) / np.sqrt(1 + m**2)
+    on_strip = dist <= width / 2
+    # part of the line that actually hits the array
+    y_line = m * np.arange(n_x) + b
+    x_on_det = np.where((y_line >= 0) & (y_line < n_y))[0]
+    x_left, x_right = x_on_det[0], x_on_det[-1]
+    # only the restricted segment (leftmost to rightmost on-detector)
+    on_segment = on_strip & (xx >= x_left) & (xx <= x_right)
+    # path length along the line, from the left end
+    s = (xx - x_left) * np.sqrt(1 + m**2)
+    s_max = (x_right - x_left) * np.sqrt(1 + m**2)
+    lambda_map = np.full((n_y, n_x), np.nan)
+    lambda_map[on_segment] = wav_start + (s[on_segment] / s_max) * (wav_end - wav_start)
+
+    # add units
+    lambda_map = lambda_map * u.um
+
+    footprint = on_segment.astype(float)
+
+    return footprint, lambda_map
 
 # ----------------------------------------------------------------------------
 
@@ -87,20 +204,16 @@ def main():
 
     ipdb.set_trace()
 
-    # generate the source
-    #src = source_blackbody(T=1000, wavelength=wav, pattern=pattern)
+    # generate starting source
+    wavel = np.linspace(0.5, 5, 1000) * u.um
+    src = source_blackbody(T=1000*u.K, wavelength=wavel)
+    ipdb.set_trace()
 
-    # debug
-    #test = source_blackbody(T=1200*u.K, wavelength=np.linspace(0.5, 5, 1000)*u.um)
-    #plt.plot(test.wavelength,test.flux)
-    #plt.show()
+    # generate intervening optics (placeholder for now)
+    io = InterveningOptics(name='simple_pass_through')
 
-
-    # apply the acceptance angle
-
-    # intervening optics (placeholder for now)
-
-    # apply dispersion law (includes effect of prism and camera lens)
+    # generate dispersion law (includes effect of prism and camera lens)
+    detector_array_canvas = np.zeros((200, 200))
 
     # calculate source photon flux on the detector
 
